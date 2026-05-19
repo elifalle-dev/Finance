@@ -1,0 +1,1144 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Finance">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#1B2A4A">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>Finance Tracker</title>
+<style>
+/* ── RESET & ROOT ─────────────────────────────────────────────── */
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none}
+:root{
+  --navy:#1B2A4A; --teal:#2E86AB; --green:#0F6E56; --red:#993C1D;
+  --green-bg:#E1F5EE; --red-bg:#FAECE7;
+  --bg:#F2F2F7; --card:#FFFFFF; --surface:#F2F2F7;
+  --border:rgba(0,0,0,0.10); --text:#1C1C1E; --muted:#8E8E93;
+  --r:12px; --r-sm:8px;
+  --sat:env(safe-area-inset-top,0px);
+  --sab:env(safe-area-inset-bottom,0px);
+}
+@media(prefers-color-scheme:dark){
+  :root{
+    --bg:#000; --card:#1C1C1E; --surface:#2C2C2E;
+    --border:rgba(255,255,255,0.10); --text:#FFFFFF; --muted:#8E8E93;
+    --green-bg:#0A2E20; --red-bg:#2E0A0A;
+  }
+}
+html,body{height:100%;background:var(--bg);font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",sans-serif;color:var(--text);overflow:hidden}
+button{font-family:inherit;-webkit-appearance:none}
+input{font-family:inherit;-webkit-appearance:none;outline:none}
+input[type=date]::-webkit-calendar-picker-indicator{opacity:.6}
+
+/* ── LAYOUT ───────────────────────────────────────────────────── */
+#app{display:flex;flex-direction:column;height:100%;max-width:430px;margin:0 auto;position:relative}
+.screen{display:none;flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding-bottom:calc(80px + var(--sab))}
+.screen.active{display:block}
+
+/* ── TOP BAR ──────────────────────────────────────────────────── */
+.top-bar{
+  background:var(--navy);
+  padding:calc(var(--sat) + 14px) 16px 44px;
+  display:flex;justify-content:space-between;align-items:flex-end;
+  flex-shrink:0;
+}
+.top-bar-title{color:#fff;font-size:17px;font-weight:600;letter-spacing:-.3px}
+.top-bar-date{color:rgba(255,255,255,.5);font-size:12px}
+
+/* ── KPI OVERLAP ──────────────────────────────────────────────── */
+.kpi-wrap{margin:-32px 12px 0;position:relative;z-index:10}
+.kpi-grid{
+  background:var(--card);border-radius:var(--r);
+  box-shadow:0 4px 24px rgba(0,0,0,.12);
+  border:.5px solid var(--border);
+  display:grid;grid-template-columns:1fr 1fr;overflow:hidden;
+}
+.kpi-cell{padding:13px 14px;border-right:.5px solid var(--border);border-bottom:.5px solid var(--border)}
+.kpi-cell:nth-child(2n){border-right:none}
+.kpi-cell:nth-child(3),.kpi-cell:nth-child(4){border-bottom:none}
+.kpi-lbl{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
+.kpi-val{font-size:18px;font-weight:700;letter-spacing:-.5px}
+.kpi-val.pos{color:var(--green)}
+.kpi-val.neg{color:var(--red)}
+
+/* ── CARDS ────────────────────────────────────────────────────── */
+.content{padding:14px 12px 0}
+.card{background:var(--card);border-radius:var(--r);border:.5px solid var(--border);overflow:hidden;margin-bottom:12px}
+.card-header{padding:12px 14px 8px;font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+
+/* ── TX ITEMS ─────────────────────────────────────────────────── */
+.tx-item{display:flex;align-items:center;gap:10px;padding:11px 14px;border-bottom:.5px solid var(--border);animation:fadeIn .2s ease}
+.tx-item:last-child{border-bottom:none}
+@keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+.tx-icon{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0}
+.tx-icon.out{background:var(--red-bg)}
+.tx-icon.in{background:var(--green-bg)}
+.tx-info{flex:1;min-width:0}
+.tx-desc{font-size:14px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text)}
+.tx-meta{font-size:11px;color:var(--muted);margin-top:2px}
+.tx-amt{font-size:15px;font-weight:700;flex-shrink:0}
+.tx-amt.out{color:var(--red)}
+.tx-amt.in{color:var(--green)}
+.tx-del{background:none;border:none;cursor:pointer;padding:6px 8px;font-size:16px;color:var(--muted);flex-shrink:0}
+.see-all{display:flex;justify-content:flex-end;padding:8px 14px 12px}
+.see-all button{background:none;border:none;font-size:13px;color:var(--teal);cursor:pointer;font-weight:500}
+
+/* ── CHART ────────────────────────────────────────────────────── */
+.chart-area{padding:0 8px 14px;height:160px;position:relative}
+svg.bars{width:100%;height:100%;overflow:visible}
+.bar-group{cursor:pointer}
+.bar-in{fill:rgba(29,158,117,.75)}
+.bar-out{fill:rgba(216,90,48,.75)}
+.bar-in:hover,.bar-out:hover{opacity:.85}
+.chart-x text{font-size:10px;fill:var(--muted);font-family:-apple-system,sans-serif}
+.chart-y text{font-size:9px;fill:var(--muted);font-family:-apple-system,sans-serif}
+.chart-legend{display:flex;gap:12px;padding:2px 14px 10px;justify-content:center}
+.legend-item{display:flex;align-items:center;gap:5px;font-size:10px;color:var(--muted)}
+.legend-dot{width:8px;height:8px;border-radius:2px}
+
+/* ── CATEGORY BARS ─────────────────────────────────────────────── */
+.cat-rows{padding:0 14px}
+.cat-row{display:flex;align-items:center;gap:8px;padding:9px 0;border-bottom:.5px solid var(--border)}
+.cat-row:last-child{border-bottom:none}
+.cat-emoji{font-size:16px;width:24px;text-align:center;flex-shrink:0}
+.cat-name{font-size:12px;color:var(--text);width:90px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cat-track{flex:1;height:6px;background:var(--surface);border-radius:3px;overflow:hidden}
+.cat-fill{height:100%;background:var(--teal);border-radius:3px;transition:width .5s cubic-bezier(.4,0,.2,1)}
+.cat-pct{font-size:10px;color:var(--muted);width:28px;text-align:right;flex-shrink:0}
+.cat-sum{font-size:12px;font-weight:600;color:var(--text);width:60px;text-align:right;flex-shrink:0}
+.tip-box{margin:12px 14px;background:var(--green-bg);border-left:3px solid #1D9E75;border-radius:0 var(--r-sm) var(--r-sm) 0;padding:10px 12px;font-size:12px;color:var(--green);line-height:1.6}
+
+/* ── MONTH CHIPS ──────────────────────────────────────────────── */
+.month-chips{display:flex;gap:6px;flex-wrap:nowrap;overflow-x:auto;padding:0 12px 12px;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+.month-chips::-webkit-scrollbar{display:none}
+.m-chip{padding:5px 14px;border-radius:20px;border:.5px solid var(--border);background:var(--card);font-size:11px;color:var(--muted);cursor:pointer;white-space:nowrap;flex-shrink:0;transition:all .15s}
+.m-chip.sel{background:var(--navy);color:#fff;border-color:var(--navy)}
+
+/* ── FORM ─────────────────────────────────────────────────────── */
+.form-section{padding:16px}
+.form-title{font-size:17px;font-weight:700;color:var(--text);margin-bottom:18px;display:flex;align-items:center;gap:8px}
+.fg{margin-bottom:16px}
+.fg label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);display:block;margin-bottom:7px}
+.fi{width:100%;padding:12px 14px;border-radius:var(--r-sm);border:.5px solid var(--border);background:var(--surface);font-size:15px;color:var(--text);transition:border-color .15s}
+.fi:focus{border-color:var(--teal);box-shadow:0 0 0 3px rgba(46,134,171,.12)}
+.fi.big{font-size:24px;font-weight:700;padding-left:28px}
+.amount-wrap{position:relative}
+.eur{position:absolute;left:13px;top:50%;transform:translateY(-50%);font-size:18px;font-weight:700;color:var(--muted);pointer-events:none}
+.type-row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.type-btn{padding:13px;border-radius:var(--r-sm);border:.5px solid var(--border);background:var(--surface);font-size:14px;font-weight:600;cursor:pointer;color:var(--muted);display:flex;align-items:center;justify-content:center;gap:7px;transition:all .15s}
+.type-btn.sel-out{background:var(--red-bg);border-color:#D85A30;color:var(--red)}
+.type-btn.sel-in{background:var(--green-bg);border-color:#1D9E75;color:var(--green)}
+.cat-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:6px}
+.cat-btn{padding:10px 6px;border-radius:var(--r-sm);border:.5px solid var(--border);background:var(--surface);font-size:11px;font-weight:500;cursor:pointer;color:var(--muted);display:flex;align-items:center;justify-content:center;gap:5px;transition:all .15s}
+.cat-btn span{font-size:15px}
+.cat-btn.sel{background:var(--green-bg);border-color:#1D9E75;color:var(--green);font-weight:700}
+.save-btn{width:100%;padding:15px;background:var(--navy);color:#fff;border:none;border-radius:var(--r-sm);font-size:16px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;margin-top:4px;transition:opacity .15s;-webkit-appearance:none}
+.save-btn:active{opacity:.75}
+
+/* ── SEARCH ───────────────────────────────────────────────────── */
+.search-row{display:flex;gap:8px;align-items:center;padding:0 12px;margin-bottom:10px}
+.search-wrap{flex:1;position:relative}
+.search-icon{position:absolute;left:11px;top:50%;transform:translateY(-50%);font-size:14px;color:var(--muted);pointer-events:none}
+.search-inp{width:100%;padding:9px 12px 9px 32px;border-radius:10px;border:.5px solid var(--border);background:var(--surface);font-size:14px;color:var(--text)}
+.clear-btn{background:none;border:none;font-size:12px;color:var(--muted);cursor:pointer;white-space:nowrap;padding:6px 0}
+
+/* ── EMPTY ────────────────────────────────────────────────────── */
+.empty{text-align:center;padding:44px 20px;color:var(--muted)}
+.empty-icon{font-size:40px;margin-bottom:12px;opacity:.4}
+.empty-text{font-size:14px;line-height:1.6}
+
+/* ── BOTTOM NAV ───────────────────────────────────────────────── */
+.bottom-nav{
+  position:fixed;bottom:0;left:50%;transform:translateX(-50%);
+  width:100%;max-width:430px;
+  background:var(--card);border-top:.5px solid var(--border);
+  display:flex;z-index:100;
+  padding-bottom:var(--sab);
+  backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+}
+.nav-btn{flex:1;padding:10px 4px 6px;display:flex;flex-direction:column;align-items:center;gap:2px;background:none;border:none;border-top:2px solid transparent;cursor:pointer;font-size:10px;color:var(--muted);font-weight:500;transition:color .15s}
+.nav-btn .nav-icon{font-size:22px;line-height:1}
+.nav-btn.active{color:var(--teal);border-top-color:var(--teal)}
+
+/* ── TOAST ────────────────────────────────────────────────────── */
+.toast{position:fixed;bottom:calc(80px + var(--sab) + 10px);left:50%;transform:translateX(-50%) translateY(10px);background:rgba(28,28,30,.9);backdrop-filter:blur(20px);color:#fff;padding:10px 22px;border-radius:24px;font-size:13px;font-weight:500;opacity:0;pointer-events:none;transition:all .22s;white-space:nowrap;z-index:999}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+/* ── INSTALL BANNER ───────────────────────────────────────────── */
+.install-banner{background:var(--navy);color:#fff;padding:10px 16px;font-size:12px;line-height:1.5;display:none;flex-shrink:0;text-align:center}
+.install-banner.show{display:block}
+.install-banner strong{display:block;font-size:13px;margin-bottom:3px}
+.install-banner span{opacity:.7}
+.install-close{position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;color:#fff;font-size:18px;cursor:pointer;opacity:.7;padding:4px}
+
+/* ── BADGE ────────────────────────────────────────────────────── */
+.badge{display:inline-block;background:rgba(46,134,171,.12);color:var(--teal);font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;margin-left:6px;vertical-align:middle}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- INSTALL BANNER (shown only in browser, not standalone) -->
+  <div class="install-banner" id="install-banner">
+    <strong>📲 Aggiungi alla schermata Home</strong>
+    <span>Tocca <strong>Condividi</strong> → "Aggiungi a schermata Home" per usarla come app</span>
+  </div>
+
+  <!-- TOP BAR -->
+  <div class="top-bar">
+    <div class="top-bar-title">💳 Finance Tracker</div>
+    <div class="top-bar-date" id="top-date"></div>
+  </div>
+
+  <!-- KPI -->
+  <div class="kpi-wrap">
+    <div class="kpi-grid">
+      <div class="kpi-cell">
+        <div class="kpi-lbl">Entrate mese</div>
+        <div class="kpi-val pos" id="kpi-in">€ 0,00</div>
+      </div>
+      <div class="kpi-cell">
+        <div class="kpi-lbl">Uscite mese</div>
+        <div class="kpi-val neg" id="kpi-out">€ 0,00</div>
+      </div>
+      <div class="kpi-cell">
+        <div class="kpi-lbl">Saldo netto</div>
+        <div class="kpi-val" id="kpi-net">€ 0,00</div>
+      </div>
+      <div class="kpi-cell">
+        <div class="kpi-lbl">Transazioni</div>
+        <div class="kpi-val" id="kpi-count" style="color:var(--text)">0</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SCREEN: HOME -->
+  <div class="screen active" id="s-home">
+    <div class="content">
+      <div style="height:14px"></div>
+
+      <!-- 6-month chart -->
+      <div class="card">
+        <div class="card-header">Ultimi 6 mesi</div>
+        <div class="chart-area" id="chart-area"></div>
+        <div class="chart-legend">
+          <div class="legend-item"><div class="legend-dot" style="background:rgba(29,158,117,.75)"></div>Entrate</div>
+          <div class="legend-item"><div class="legend-dot" style="background:rgba(216,90,48,.75)"></div>Uscite</div>
+        </div>
+      </div>
+
+      <!-- Recent -->
+      <div class="card">
+        <div class="card-header">Recenti <span class="badge" id="total-badge">0</span></div>
+        <div id="recent-list"></div>
+        <div class="see-all"><button onclick="switchTab('history')">Vedi tutte le transazioni →</button></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SCREEN: ADD -->
+  <div class="screen" id="s-add">
+    <div class="content">
+      <div style="height:14px"></div>
+      <div class="card">
+        <div class="form-section">
+          <div class="form-title">➕ Nuova transazione</div>
+
+          <div class="fg">
+            <label>Tipo</label>
+            <div class="type-row">
+              <button class="type-btn sel-out" id="btn-out" onclick="selType('out')">⬆️ Uscita</button>
+              <button class="type-btn" id="btn-in" onclick="selType('in')">⬇️ Entrata</button>
+            </div>
+          </div>
+
+          <div class="fg">
+            <label>Importo</label>
+            <div class="amount-wrap">
+              <span class="eur">€</span>
+              <input class="fi big" type="number" id="f-amount" placeholder="0,00" step="0.01" min="0" inputmode="decimal">
+            </div>
+          </div>
+
+          <div class="fg">
+            <label>Descrizione</label>
+            <input class="fi" type="text" id="f-desc" placeholder="es. Tigros, Stipendio, Mutuo…" autocomplete="off">
+          </div>
+
+          <div class="fg">
+            <label>Data</label>
+            <input class="fi" type="date" id="f-date">
+          </div>
+
+          <div class="fg">
+            <label>Categoria</label>
+            <div class="cat-grid" id="cat-grid"></div>
+          </div>
+
+          <div class="fg">
+            <label>Note (opzionale)</label>
+            <input class="fi" type="text" id="f-note" placeholder="es. Rata, bolletta bimestrale…" autocomplete="off">
+          </div>
+
+          <button class="save-btn" onclick="saveTx()">💾&nbsp; Salva transazione</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SCREEN: REPORT -->
+  <div class="screen" id="s-report">
+    <div style="height:14px"></div>
+    <div class="month-chips" id="month-chips"></div>
+    <div class="content" style="padding-top:0">
+      <div class="card">
+        <div class="card-header" id="rep-title">Spese per categoria</div>
+        <div class="cat-rows" id="cat-rows"></div>
+        <div class="tip-box" id="rep-tip" style="display:none"></div>
+      </div>
+      <div class="card">
+        <div class="card-header">Andamento giornaliero</div>
+        <div class="chart-area" id="daily-chart"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SCREEN: SHORTCUTS GUIDE -->
+  <div class="screen" id="s-guide">
+    <div class="content">
+      <div style="height:14px"></div>
+      <div class="card" style="padding:16px">
+        <div style="font-size:17px;font-weight:700;color:var(--text);margin-bottom:4px">📲 Notifiche automatiche</div>
+        <div style="font-size:13px;color:var(--muted);margin-bottom:16px;line-height:1.5">Configura <strong>Comandi</strong> di iOS per registrare spese dalle notifiche bancarie (Satispay, Revolut, Sella).</div>
+        <div style="background:var(--surface);border-radius:8px;padding:12px;margin-bottom:14px">
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;color:var(--teal)">🔗 URL della tua app</div>
+          <div id="app-url" style="font-size:12px;font-weight:600;color:var(--text);word-break:break-all;line-height:1.5"></div>
+          <button onclick="copyURL()" style="margin-top:8px;width:100%;padding:9px;background:var(--teal);color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer">📋 Copia URL</button>
+        </div>
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:10px">Istruzioni passo per passo</div>
+        <div id="steps-list"></div>
+        <div style="margin-top:14px;background:var(--green-bg);border-left:3px solid #1D9E75;border-radius:0 8px 8px 0;padding:10px 12px;font-size:12px;color:var(--green);line-height:1.6">
+          <strong>Come funziona:</strong> Quando arriva una notifica da Satispay o Revolut, il Comando estrae importo e commerciante e apre l'app con il form già compilato. Tu controlli e premi Salva.
+        </div>
+      </div>
+      <div class="card" style="padding:16px">
+        <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:12px">🔧 Costruisci l'URL per Comandi</div>
+        <div class="fg">
+          <label>Modo salvataggio</label>
+          <div class="type-row" style="gap:6px">
+            <button id="ub-no" class="type-btn sel-out" onclick="ubAuto=false;buildURL();document.getElementById('ub-no').className='type-btn sel-out';document.getElementById('ub-si').className='type-btn'">✋ Chiede conferma</button>
+            <button id="ub-si" class="type-btn" onclick="ubAuto=true;buildURL();document.getElementById('ub-si').className='type-btn sel-in';document.getElementById('ub-no').className='type-btn'">⚡ Salva subito</button>
+          </div>
+        </div>
+        <div style="background:var(--surface);border-radius:8px;padding:12px;margin-bottom:10px">
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;color:var(--teal)">URL da incollare in Comandi</div>
+          <div id="built-url" style="font-size:11px;color:var(--text);word-break:break-all;line-height:1.6"></div>
+        </div>
+        <button onclick="copyBuiltURL()" style="width:100%;padding:11px;background:var(--navy);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">📋 Copia URL</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SCREEN: HISTORY -->
+  <div class="screen" id="s-history">
+    <div style="height:14px"></div>
+    <div class="search-row">
+      <div class="search-wrap">
+        <span class="search-icon">🔍</span>
+        <input class="search-inp" type="text" id="search-inp" placeholder="Cerca transazione…" oninput="renderHistory()" autocomplete="off">
+      </div>
+      <button class="clear-btn" onclick="confirmClear()">Cancella tutto</button>
+    </div>
+    <div class="card" style="margin:0 12px">
+      <div id="history-list"></div>
+    </div>
+  </div>
+
+  <!-- BOTTOM NAV -->
+  <nav class="bottom-nav">
+    <button class="nav-btn active" id="tab-home" onclick="switchTab('home')">
+      <span class="nav-icon">🏠</span>Home
+    </button>
+    <button class="nav-btn" id="tab-add" onclick="switchTab('add')">
+      <span class="nav-icon">➕</span>Aggiungi
+    </button>
+    <button class="nav-btn" id="tab-report" onclick="switchTab('report')">
+      <span class="nav-icon">📊</span>Report
+    </button>
+    <button class="nav-btn" id="tab-guide" onclick="switchTab('guide')">
+      <span class="nav-icon">📲</span>Comandi
+    </button>
+    <button class="nav-btn" id="tab-history" onclick="switchTab('history')">
+      <span class="nav-icon">📋</span>Storico
+    </button>
+  </nav>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+// ── DATI SEED ─────────────────────────────────────────────────────────────
+const SEED=[
+  // NOVEMBRE 2025
+  {id:1001,type:"in", amount:2067.87,desc:"Stipendio Italgas Reti",         date:"2025-11-27",cat:"stipendio",    note:""},
+  {id:1002,type:"out",amount:491.84, desc:"Rata mutuo novembre",             date:"2025-11-14",cat:"mutuo",        note:""},
+  {id:1003,type:"out",amount:259.92, desc:"PagoPA - tassa/imposta",          date:"2025-11-28",cat:"altro",        note:"DA VERIFICARE (IMU?)"},
+  // DICEMBRE 2025
+  {id:1004,type:"in", amount:3442.64,desc:"Stipendio Italgas (+ tredicesima)",date:"2025-12-19",cat:"stipendio",  note:"Tredicesima inclusa"},
+  {id:1005,type:"in", amount:63.90,  desc:"Rimborso bollette ottobre Greta", date:"2025-12-14",cat:"rimborso",    note:""},
+  {id:1006,type:"out",amount:491.84, desc:"Rata mutuo dicembre",             date:"2025-12-15",cat:"mutuo",        note:""},
+  {id:1007,type:"out",amount:49.79,  desc:"TIM telefonia",                   date:"2025-12-09",cat:"utenze",       note:"SDD"},
+  {id:1008,type:"out",amount:45.52,  desc:"Tate Energia ottobre",            date:"2025-12-09",cat:"utenze",       note:"EE059626"},
+  {id:1009,type:"out",amount:18.35,  desc:"Tate Gas ottobre",                date:"2025-12-10",cat:"utenze",       note:"GN032134"},
+  {id:1010,type:"out",amount:17.13,  desc:"VISA Inchiaro novembre",          date:"2025-12-10",cat:"altro",        note:"Estratto carta"},
+  {id:1011,type:"out",amount:46.00,  desc:"Alleanza Assicurazioni 12/25",    date:"2025-12-10",cat:"assicurazioni",note:""},
+  {id:1012,type:"out",amount:50.01,  desc:"Distributore CONAD Ivrea",        date:"2025-12-12",cat:"carburante",   note:""},
+  // GENNAIO 2026 – Sella
+  {id:1013,type:"in", amount:2063.19,desc:"Stipendio Italgas Reti",          date:"2026-01-27",cat:"stipendio",   note:""},
+  {id:1014,type:"out",amount:491.84, desc:"Rata mutuo gennaio",              date:"2026-01-14",cat:"mutuo",        note:""},
+  {id:1015,type:"out",amount:49.79,  desc:"TIM telefonia",                   date:"2026-01-08",cat:"utenze",       note:""},
+  {id:1016,type:"out",amount:51.61,  desc:"Tate Energia novembre",           date:"2026-01-15",cat:"utenze",       note:"EE064790"},
+  {id:1017,type:"out",amount:159.63, desc:"Tate Gas novembre",               date:"2026-01-20",cat:"utenze",       note:"GN035038"},
+  {id:1018,type:"out",amount:46.00,  desc:"Alleanza Assicurazioni 01/26",    date:"2026-01-12",cat:"assicurazioni",note:""},
+  {id:1019,type:"out",amount:90.00,  desc:"JD Sports Pavone Torino",         date:"2026-01-11",cat:"abbigliamento",note:""},
+  {id:1020,type:"out",amount:120.00, desc:"Carnevale pagamento Greta",       date:"2026-01-14",cat:"intrattenimento",note:""},
+  {id:1021,type:"out",amount:17.13,  desc:"VISA Inchiaro dicembre",          date:"2026-01-09",cat:"altro",        note:"Estratto carta"},
+  // GENNAIO 2026 – UniCredit
+  {id:1022,type:"out",amount:175.25, desc:"Rata prestito UniCredit",         date:"2026-01-02",cat:"mutuo",        note:"Fin. 30614857"},
+  {id:1023,type:"out",amount:40.00,  desc:"Timfin finanziamento",            date:"2026-01-05",cat:"altro",        note:""},
+  {id:1024,type:"out",amount:25.11,  desc:"ENI Torino carburante",           date:"2026-01-05",cat:"carburante",   note:""},
+  {id:1025,type:"out",amount:32.00,  desc:"Royal Rivarolo",                  date:"2026-01-07",cat:"ristoranti",   note:""},
+  {id:1026,type:"out",amount:50.00,  desc:"Azimut LUX piano accumulo",       date:"2026-01-12",cat:"investimenti", note:"Rata 009"},
+  {id:1027,type:"out",amount:8.57,   desc:"DeviantArt",                      date:"2026-01-12",cat:"abbonamenti",  note:"USD10"},
+  {id:1028,type:"out",amount:71.20,  desc:"Satispay ricarica",               date:"2026-01-13",cat:"altro",        note:""},
+  {id:1029,type:"out",amount:50.11,  desc:"MMB SAS Bonaccorso Ivrea",        date:"2026-01-15",cat:"altro",        note:""},
+  {id:1030,type:"out",amount:4.99,   desc:"Apple App Store",                 date:"2026-01-19",cat:"abbonamenti",  note:""},
+  {id:1031,type:"out",amount:6.90,   desc:"DeviantArt",                      date:"2026-01-19",cat:"abbonamenti",  note:"USD8"},
+  {id:1032,type:"out",amount:31.40,  desc:"Satispay ricarica",               date:"2026-01-21",cat:"altro",        note:""},
+  {id:1033,type:"out",amount:6.99,   desc:"TikTok",                          date:"2026-01-26",cat:"abbonamenti",  note:""},
+  {id:1034,type:"out",amount:2.99,   desc:"Apple.com/Bill",                  date:"2026-01-26",cat:"abbonamenti",  note:""},
+  {id:1035,type:"out",amount:93.95,  desc:"Amazon acquisto",                 date:"2026-01-26",cat:"altro",        note:"Shopping online"},
+  {id:1036,type:"out",amount:30.10,  desc:"Satispay ricarica",               date:"2026-01-27",cat:"altro",        note:""},
+  {id:1037,type:"out",amount:230.00, desc:"Cofidis rata prestito",           date:"2026-01-28",cat:"altro",        note:""},
+  // GENNAIO 2026 – Revolut
+  {id:1038,type:"out",amount:10.37,  desc:"Patreon",                         date:"2026-01-02",cat:"abbonamenti",  note:""},
+  {id:1039,type:"out",amount:62.80,  desc:"Hare Burolo",                     date:"2026-01-03",cat:"ristoranti",   note:""},
+  {id:1040,type:"out",amount:7.32,   desc:"Patreon",                         date:"2026-01-04",cat:"abbonamenti",  note:""},
+  {id:1041,type:"out",amount:2.58,   desc:"Action Rivarolo",                 date:"2026-01-04",cat:"altro",        note:""},
+  {id:1042,type:"out",amount:42.50,  desc:"Snowit Sportit skipass",          date:"2026-01-05",cat:"sport",        note:""},
+  {id:1043,type:"out",amount:7.50,   desc:"Autostrade per l'Italia",         date:"2026-01-06",cat:"trasporti",    note:""},
+  {id:1044,type:"out",amount:15.00,  desc:"Farmacia Del Cambio Torino",      date:"2026-01-06",cat:"salute",       note:""},
+  {id:1045,type:"out",amount:34.00,  desc:"Atipici Torino",                  date:"2026-01-06",cat:"abbigliamento",note:""},
+  {id:1046,type:"out",amount:61.90,  desc:"Fumi Ristorante Rivarolo",        date:"2026-01-07",cat:"ristoranti",   note:""},
+  {id:1047,type:"out",amount:15.36,  desc:"Il Gigante",                      date:"2026-01-08",cat:"alimentari",   note:""},
+  {id:1048,type:"out",amount:8.99,   desc:"NowTV",                           date:"2026-01-10",cat:"abbonamenti",  note:""},
+  {id:1049,type:"out",amount:21.39,  desc:"Valter Vallosio Favria",          date:"2026-01-11",cat:"alimentari",   note:"Macelleria"},
+  {id:1050,type:"out",amount:17.00,  desc:"La Terrazza Rivarolo",            date:"2026-01-11",cat:"ristoranti",   note:""},
+  {id:1051,type:"out",amount:12.60,  desc:"Cerrano Umberto Foglizzo",        date:"2026-01-11",cat:"alimentari",   note:""},
+  {id:1052,type:"out",amount:7.17,   desc:"Pam Panorama Rivarolo",           date:"2026-01-13",cat:"alimentari",   note:""},
+  {id:1053,type:"out",amount:32.90,  desc:"Il Gigante",                      date:"2026-01-14",cat:"alimentari",   note:""},
+  {id:1054,type:"out",amount:20.99,  desc:"Spotify",                         date:"2026-01-16",cat:"abbonamenti",  note:""},
+  {id:1055,type:"out",amount:18.90,  desc:"Adri Fleur Rivarolo",             date:"2026-01-17",cat:"altro",        note:"Fioraio"},
+  {id:1056,type:"out",amount:37.50,  desc:"La Terrazza Rivarolo",            date:"2026-01-18",cat:"ristoranti",   note:""},
+  {id:1057,type:"out",amount:27.93,  desc:"Carrefour Burolo",                date:"2026-01-19",cat:"alimentari",   note:""},
+  {id:1058,type:"out",amount:89.10,  desc:"Booking.com Amsterdam",           date:"2026-01-20",cat:"intrattenimento",note:"Viaggio"},
+  {id:1059,type:"in", amount:45.00,  desc:"Rimborso Greta Bertodo",          date:"2026-01-21",cat:"rimborso",     note:""},
+  {id:1060,type:"out",amount:8.59,   desc:"DeviantArt",                      date:"2026-01-22",cat:"abbonamenti",  note:"USD10"},
+  {id:1061,type:"in", amount:48.00,  desc:"Rimborso Greta Bertodo",          date:"2026-01-24",cat:"rimborso",     note:""},
+  {id:1062,type:"out",amount:58.35,  desc:"Arcaplanet Settimo Torinese",     date:"2026-01-25",cat:"animali",      note:""},
+  {id:1063,type:"out",amount:67.80,  desc:"Hare Milano",                     date:"2026-01-25",cat:"ristoranti",   note:""},
+  {id:1064,type:"out",amount:41.09,  desc:"Centro Calor Valperga",           date:"2026-01-26",cat:"altro",        note:"Riscaldamento"},
+  {id:1065,type:"out",amount:14.99,  desc:"Microsoft",                       date:"2026-01-26",cat:"abbonamenti",  note:""},
+  {id:1066,type:"out",amount:6.90,   desc:"Nuova Agraria San Ponso",         date:"2026-01-26",cat:"alimentari",   note:""},
+  {id:1067,type:"out",amount:10.00,  desc:"Apple iTunes",                    date:"2026-01-27",cat:"abbonamenti",  note:""},
+  {id:1068,type:"out",amount:12.19,  desc:"Tigros Rivarolo",                 date:"2026-01-27",cat:"alimentari",   note:""},
+  {id:1069,type:"out",amount:16.81,  desc:"DeviantArt x2",                   date:"2026-01-28",cat:"abbonamenti",  note:"USD20"},
+  {id:1070,type:"out",amount:78.00,  desc:"Robo Portfolio gen 2026",         date:"2026-01-31",cat:"investimenti", note:"Micro-versamenti aggregati"},
+  {id:1071,type:"out",amount:4.32,   desc:"Tigros Rivarolo",                 date:"2026-01-31",cat:"alimentari",   note:""},
+  {id:1072,type:"out",amount:9.70,   desc:"Lucco Navei Riccardo",            date:"2026-01-31",cat:"alimentari",   note:"Macelleria"},
+  // FEBBRAIO 2026 – Sella
+  {id:1073,type:"in", amount:2024.80,desc:"Stipendio Italgas Reti",          date:"2026-02-27",cat:"stipendio",   note:""},
+  {id:1074,type:"in", amount:270.00, desc:"Rimborso bollette Greta",         date:"2026-02-22",cat:"rimborso",    note:""},
+  {id:1075,type:"out",amount:491.84, desc:"Rata mutuo febbraio",             date:"2026-02-16",cat:"mutuo",        note:""},
+  {id:1076,type:"out",amount:44.79,  desc:"TIM telefonia",                   date:"2026-02-09",cat:"utenze",       note:""},
+  {id:1077,type:"out",amount:391.00, desc:"Garoia & Vittone SNC Rivara",     date:"2026-02-09",cat:"altro",        note:"Manutenzione auto/casa ⚠️"},
+  {id:1078,type:"out",amount:68.00,  desc:"Associazione Pante Strambino",    date:"2026-02-08",cat:"sport",        note:""},
+  {id:1079,type:"out",amount:60.02,  desc:"Distributore CONAD Ivrea",        date:"2026-02-13",cat:"carburante",   note:""},
+  {id:1080,type:"out",amount:17.13,  desc:"VISA Inchiaro gennaio",           date:"2026-02-10",cat:"altro",        note:"Estratto carta"},
+  {id:1081,type:"out",amount:46.00,  desc:"Alleanza Assicurazioni 02/26",    date:"2026-02-10",cat:"assicurazioni",note:""},
+  {id:1082,type:"out",amount:35.63,  desc:"Satispay ricarica",               date:"2026-02-23",cat:"altro",        note:""},
+  {id:1083,type:"out",amount:211.31, desc:"TARI 2023 Comune Rivarolo",       date:"2026-02-19",cat:"utenze",       note:"Tassa rifiuti"},
+  {id:1084,type:"out",amount:295.32, desc:"Ticketone evento Milano",         date:"2026-02-19",cat:"intrattenimento",note:""},
+  {id:1085,type:"out",amount:0.48,   desc:"Memoshop gen 2026",               date:"2026-02-03",cat:"abbonamenti",  note:""},
+  // FEBBRAIO 2026 – UniCredit + Revolut
+  {id:1086,type:"out",amount:14.21,  desc:"Recupero rata prestito",          date:"2026-02-03",cat:"mutuo",        note:"Arretrato UniCredit"},
+  {id:1087,type:"out",amount:161.16, desc:"Recupero rate scadute prestito",  date:"2026-02-06",cat:"mutuo",        note:"Arretrati UniCredit"},
+  {id:1088,type:"out",amount:40.00,  desc:"Timfin finanziamento",            date:"2026-02-09",cat:"altro",        note:""},
+  {id:1089,type:"out",amount:15.20,  desc:"Satispay ricarica",               date:"2026-02-10",cat:"altro",        note:""},
+  {id:1090,type:"out",amount:50.00,  desc:"Azimut LUX piano accumulo",       date:"2026-02-10",cat:"investimenti", note:"Rata 010"},
+  {id:1091,type:"out",amount:8.99,   desc:"NowTV",                           date:"2026-02-11",cat:"abbonamenti",  note:""},
+  {id:1092,type:"out",amount:3.85,   desc:"Pam Panorama Rivarolo",           date:"2026-02-11",cat:"alimentari",   note:""},
+  {id:1093,type:"out",amount:6.49,   desc:"Tigros Rivarolo",                 date:"2026-02-12",cat:"alimentari",   note:""},
+  {id:1094,type:"out",amount:4.99,   desc:"Apple App Store",                 date:"2026-02-17",cat:"abbonamenti",  note:""},
+  {id:1095,type:"out",amount:4.55,   desc:"Satispay ricarica",               date:"2026-02-18",cat:"altro",        note:""},
+  {id:1096,type:"out",amount:40.00,  desc:"Prelievo ATM",                    date:"2026-02-20",cat:"altro",        note:"Contante"},
+  {id:1097,type:"out",amount:2.99,   desc:"Apple.com/Bill",                  date:"2026-02-26",cat:"abbonamenti",  note:""},
+  {id:1098,type:"out",amount:42.50,  desc:"Snowit Sportit skipass",          date:"2026-02-01",cat:"sport",        note:""},
+  {id:1099,type:"out",amount:10.60,  desc:"Les Montagnards Torgnon",         date:"2026-02-01",cat:"ristoranti",   note:""},
+  {id:1100,type:"out",amount:10.37,  desc:"Patreon",                         date:"2026-02-02",cat:"abbonamenti",  note:""},
+  {id:1101,type:"out",amount:30.90,  desc:"Ristorante Blu San Maurizio",     date:"2026-02-02",cat:"ristoranti",   note:""},
+  {id:1102,type:"out",amount:30.00,  desc:"Pagamento Greta Bertodo",         date:"2026-02-02",cat:"altro",        note:"Divisione spese"},
+  {id:1103,type:"out",amount:7.32,   desc:"Patreon",                         date:"2026-02-04",cat:"abbonamenti",  note:""},
+  {id:1104,type:"out",amount:5.74,   desc:"Tigros Rivarolo",                 date:"2026-02-06",cat:"alimentari",   note:""},
+  {id:1105,type:"out",amount:2.56,   desc:"Visiononlin",                     date:"2026-02-06",cat:"abbonamenti",  note:"USD3"},
+  {id:1106,type:"out",amount:19.33,  desc:"Temu",                            date:"2026-02-09",cat:"altro",        note:"Shopping online"},
+  {id:1107,type:"out",amount:26.95,  desc:"Farmacia Centrale Rivarolo",      date:"2026-02-10",cat:"salute",       note:""},
+  {id:1108,type:"in", amount:510.11, desc:"Disinvestimento Robo Portfolio",  date:"2026-02-12",cat:"rimborso",     note:"Revolut"},
+  {id:1109,type:"out",amount:20.99,  desc:"Spotify",                         date:"2026-02-13",cat:"abbonamenti",  note:""},
+  {id:1110,type:"out",amount:63.30,  desc:"Hare Burolo",                     date:"2026-02-14",cat:"ristoranti",   note:""},
+  {id:1111,type:"out",amount:35.00,  desc:"Adri Fleur Rivarolo",             date:"2026-02-14",cat:"altro",        note:"Fioraio S. Valentino"},
+  {id:1112,type:"out",amount:17.96,  desc:"Tigros Rivarolo",                 date:"2026-02-14",cat:"alimentari",   note:""},
+  {id:1113,type:"out",amount:5.99,   desc:"Apple",                           date:"2026-02-15",cat:"abbonamenti",  note:""},
+  {id:1114,type:"out",amount:30.00,  desc:"Piemonte bar Rivarolo",           date:"2026-02-15",cat:"ristoranti",   note:""},
+  {id:1115,type:"out",amount:17.00,  desc:"Lartigiano Del Salume Ivrea",     date:"2026-02-16",cat:"alimentari",   note:"Salumeria"},
+  {id:1116,type:"out",amount:23.13,  desc:"Pam Panorama Rivarolo",           date:"2026-02-17",cat:"alimentari",   note:""},
+  {id:1117,type:"out",amount:10.00,  desc:"Emc Costa Castellamonte",         date:"2026-02-18",cat:"altro",        note:""},
+  {id:1118,type:"out",amount:12.00,  desc:"Ah.el Sas Agliè",                 date:"2026-02-18",cat:"ristoranti",   note:"Bar"},
+  {id:1119,type:"out",amount:8.30,   desc:"Lucco Navei Riccardo",            date:"2026-02-18",cat:"alimentari",   note:""},
+  {id:1120,type:"out",amount:5.00,   desc:"Caffè N-and Pognano",             date:"2026-02-19",cat:"ristoranti",   note:""},
+  {id:1121,type:"out",amount:35.00,  desc:"Bowie Torino",                    date:"2026-02-19",cat:"intrattenimento",note:""},
+  {id:1122,type:"in", amount:49.50,  desc:"PayPal rimborso",                 date:"2026-02-20",cat:"rimborso",     note:""},
+  {id:1123,type:"out",amount:70.00,  desc:"Tilitadragos PayPal",             date:"2026-02-21",cat:"altro",        note:""},
+  {id:1124,type:"out",amount:63.55,  desc:"Cibot Torino",                    date:"2026-02-23",cat:"abbigliamento",note:""},
+  {id:1125,type:"out",amount:22.45,  desc:"KFC Settimo Torinese",            date:"2026-02-23",cat:"ristoranti",   note:""},
+  {id:1126,type:"out",amount:42.64,  desc:"Tigros Rivarolo",                 date:"2026-02-26",cat:"alimentari",   note:""},
+  {id:1127,type:"out",amount:10.00,  desc:"Apple iTunes",                    date:"2026-02-27",cat:"abbonamenti",  note:""},
+  {id:1128,type:"out",amount:70.00,  desc:"Robo Portfolio feb 2026",         date:"2026-02-28",cat:"investimenti", note:"Micro-versamenti aggregati"},
+  // MARZO 2026 – Sella
+  {id:1129,type:"in", amount:1959.70,desc:"Stipendio Italgas Reti",          date:"2026-03-27",cat:"stipendio",   note:""},
+  {id:1130,type:"in", amount:300.00, desc:"Rimborso bollette Greta",         date:"2026-03-18",cat:"rimborso",    note:""},
+  {id:1131,type:"in", amount:117.00, desc:"Joseph Curcio rimborso",          date:"2026-03-24",cat:"rimborso",    note:""},
+  {id:1132,type:"out",amount:491.84, desc:"Rata mutuo marzo",                date:"2026-03-16",cat:"mutuo",        note:""},
+  {id:1133,type:"out",amount:44.79,  desc:"TIM telefonia",                   date:"2026-03-09",cat:"utenze",       note:""},
+  {id:1134,type:"out",amount:230.24, desc:"Cofidis rata prestito",           date:"2026-03-03",cat:"altro",        note:""},
+  {id:1135,type:"out",amount:40.35,  desc:"VISA Inchiaro febbraio",          date:"2026-03-10",cat:"altro",        note:"Estratto carta"},
+  {id:1136,type:"out",amount:46.00,  desc:"Alleanza Assicurazioni 03/26",    date:"2026-03-10",cat:"assicurazioni",note:""},
+  {id:1137,type:"out",amount:70.30,  desc:"ENI gas regolamento",             date:"2026-03-18",cat:"utenze",       note:""},
+  {id:1138,type:"out",amount:238.64, desc:"ENI luce regolamento",            date:"2026-03-18",cat:"utenze",       note:""},
+  {id:1139,type:"out",amount:30.00,  desc:"Alleanza Assicurazioni polizza",  date:"2026-03-18",cat:"assicurazioni",note:"Proposta 606589439"},
+  {id:1140,type:"out",amount:200.00, desc:"Ottica Micheletto Pont Canavese", date:"2026-03-19",cat:"salute",       note:""},
+  {id:1141,type:"out",amount:116.63, desc:"Ticketone #12911397 Milano",      date:"2026-03-24",cat:"intrattenimento",note:""},
+  {id:1142,type:"out",amount:233.26, desc:"Ticketone #12911210 Milano",      date:"2026-03-24",cat:"intrattenimento",note:""},
+  {id:1143,type:"out",amount:42.23,  desc:"Tigros Rivarolo",                 date:"2026-03-23",cat:"alimentari",   note:"Sella"},
+  {id:1144,type:"out",amount:0.48,   desc:"Memoshop feb 2026",               date:"2026-03-02",cat:"abbonamenti",  note:""},
+  // MARZO 2026 – UniCredit + Revolut
+  {id:1145,type:"out",amount:175.25, desc:"Rata prestito UniCredit",         date:"2026-03-02",cat:"mutuo",        note:"Rata 049"},
+  {id:1146,type:"out",amount:49.90,  desc:"Amazon Prime",                    date:"2026-03-02",cat:"abbonamenti",  note:""},
+  {id:1147,type:"out",amount:18.88,  desc:"Satispay ricarica",               date:"2026-03-03",cat:"altro",        note:""},
+  {id:1148,type:"out",amount:40.00,  desc:"Timfin finanziamento",            date:"2026-03-03",cat:"altro",        note:""},
+  {id:1149,type:"out",amount:36.70,  desc:"Satispay ricarica",               date:"2026-03-10",cat:"altro",        note:""},
+  {id:1150,type:"out",amount:50.00,  desc:"Azimut LUX piano accumulo",       date:"2026-03-10",cat:"investimenti", note:"Rata 011"},
+  {id:1151,type:"out",amount:5.67,   desc:"NowTV",                           date:"2026-03-11",cat:"abbonamenti",  note:""},
+  {id:1152,type:"out",amount:5.99,   desc:"Apple App Store",                 date:"2026-03-18",cat:"abbonamenti",  note:""},
+  {id:1153,type:"out",amount:17.00,  desc:"M.T.A. Ozegna",                   date:"2026-03-23",cat:"ristoranti",   note:""},
+  {id:1154,type:"out",amount:10.90,  desc:"Bistrot Mario Rivarolo",          date:"2026-03-23",cat:"ristoranti",   note:""},
+  {id:1155,type:"out",amount:67.60,  desc:"Satispay ricariche varie",        date:"2026-03-24",cat:"altro",        note:"11.70+51.00+4.90"},
+  {id:1156,type:"out",amount:2.99,   desc:"Apple.com/Bill",                  date:"2026-03-26",cat:"abbonamenti",  note:""},
+  {id:1157,type:"out",amount:607.98, desc:"Amazon acquisto",                 date:"2026-03-27",cat:"altro",        note:"⚠️ importo elevato"},
+  {id:1158,type:"out",amount:10.60,  desc:"Satispay ricariche",              date:"2026-03-31",cat:"altro",        note:"4.65+5.95"},
+  {id:1159,type:"out",amount:48.00,  desc:"Por Tres Ozegna",                 date:"2026-03-01",cat:"ristoranti",   note:""},
+  {id:1160,type:"out",amount:3.49,   desc:"Apple",                           date:"2026-03-02",cat:"abbonamenti",  note:""},
+  {id:1161,type:"out",amount:25.00,  desc:"La Terrazza Rivarolo",            date:"2026-03-02",cat:"ristoranti",   note:""},
+  {id:1162,type:"out",amount:32.00,  desc:"M.T.A. Ozegna",                   date:"2026-03-02",cat:"altro",        note:""},
+  {id:1163,type:"out",amount:18.85,  desc:"Tigros Rivarolo",                 date:"2026-03-03",cat:"alimentari",   note:""},
+  {id:1164,type:"out",amount:10.98,  desc:"Tigros Rivarolo",                 date:"2026-03-06",cat:"alimentari",   note:""},
+  {id:1165,type:"out",amount:15.20,  desc:"Valter Vallosio Favria",          date:"2026-03-08",cat:"alimentari",   note:"Macelleria"},
+  {id:1166,type:"out",amount:50.00,  desc:"CONAD service station Ivrea",     date:"2026-03-09",cat:"carburante",   note:""},
+  {id:1167,type:"out",amount:64.80,  desc:"Hare Milano",                     date:"2026-03-09",cat:"ristoranti",   note:""},
+  {id:1168,type:"out",amount:13.95,  desc:"Tigros Rivarolo",                 date:"2026-03-10",cat:"alimentari",   note:""},
+  {id:1169,type:"out",amount:12.20,  desc:"Self Bistrot Mario Rivarolo",     date:"2026-03-10",cat:"ristoranti",   note:""},
+  {id:1170,type:"out",amount:20.99,  desc:"Spotify",                         date:"2026-03-13",cat:"abbonamenti",  note:""},
+  {id:1171,type:"out",amount:9.95,   desc:"Action Rivarolo",                 date:"2026-03-14",cat:"altro",        note:""},
+  {id:1172,type:"out",amount:7.50,   desc:"G.E.J. Di Osello Rivarolo",       date:"2026-03-14",cat:"alimentari",   note:"Panetteria"},
+  {id:1173,type:"out",amount:8.00,   desc:"Portici bar Rivarolo",            date:"2026-03-15",cat:"ristoranti",   note:""},
+  {id:1174,type:"out",amount:28.00,  desc:"M.T.A. Ozegna",                   date:"2026-03-15",cat:"altro",        note:""},
+  {id:1175,type:"out",amount:15.00,  desc:"Bomber Comics Rivarolo",          date:"2026-03-16",cat:"intrattenimento",note:"Fumetteria"},
+  {id:1176,type:"out",amount:21.93,  desc:"Tigros Rivarolo",                 date:"2026-03-16",cat:"alimentari",   note:""},
+  {id:1177,type:"out",amount:17.00,  desc:"Royal Rivarolo",                  date:"2026-03-16",cat:"ristoranti",   note:""},
+  {id:1178,type:"out",amount:5.79,   desc:"Pam Panorama Rivarolo",           date:"2026-03-17",cat:"alimentari",   note:""},
+  {id:1179,type:"in", amount:95.45,  desc:"Disinvestimento Robo Portfolio",  date:"2026-03-18",cat:"rimborso",     note:""},
+  {id:1180,type:"out",amount:5.99,   desc:"Apple",                           date:"2026-03-19",cat:"abbonamenti",  note:""},
+  {id:1181,type:"out",amount:16.00,  desc:"Ah.el Sas Agliè",                 date:"2026-03-20",cat:"ristoranti",   note:""},
+  {id:1182,type:"out",amount:53.00,  desc:"Caffè Vergnano Torino",           date:"2026-03-22",cat:"ristoranti",   note:""},
+  {id:1183,type:"out",amount:16.00,  desc:"Primark Torino",                  date:"2026-03-22",cat:"abbigliamento",note:""},
+  {id:1184,type:"out",amount:40.00,  desc:"Da Gio Cuorgnè",                  date:"2026-03-23",cat:"ristoranti",   note:""},
+  {id:1185,type:"out",amount:12.96,  desc:"Tigros Rivarolo",                 date:"2026-03-23",cat:"alimentari",   note:""},
+  {id:1186,type:"out",amount:17.93,  desc:"Apple varie",                     date:"2026-03-27",cat:"abbonamenti",  note:"7.93+10.00"},
+  {id:1187,type:"out",amount:22.00,  desc:"La Sgarbatella Oglianico",        date:"2026-03-28",cat:"ristoranti",   note:""},
+  {id:1188,type:"out",amount:8.45,   desc:"McDonald's Rivarolo",             date:"2026-03-28",cat:"ristoranti",   note:""},
+  {id:1189,type:"out",amount:30.00,  desc:"Fit Village Oglianico",           date:"2026-03-29",cat:"sport",        note:"Palestra"},
+  {id:1190,type:"out",amount:7.93,   desc:"Apple",                           date:"2026-03-30",cat:"abbonamenti",  note:""},
+  {id:1191,type:"out",amount:51.52,  desc:"Imbroinise Petroli Castellamonte",date:"2026-03-30",cat:"carburante",   note:""},
+  {id:1192,type:"out",amount:40.43,  desc:"Tigros Rivarolo",                 date:"2026-03-30",cat:"alimentari",   note:""},
+  {id:1193,type:"out",amount:70.00,  desc:"Studio Odontoiatrico Ciriè",      date:"2026-03-31",cat:"salute",       note:""},
+  {id:1194,type:"out",amount:75.00,  desc:"Robo Portfolio mar 2026",         date:"2026-03-31",cat:"investimenti", note:"Micro-versamenti aggregati"},
+  // APRILE 2026 – Sella
+  {id:1195,type:"in", amount:2011.79,desc:"Stipendio Italgas Reti",          date:"2026-04-27",cat:"stipendio",   note:""},
+  {id:1196,type:"in", amount:50.00,  desc:"Cristian Moisa rimborso",         date:"2026-04-11",cat:"rimborso",    note:""},
+  {id:1197,type:"out",amount:491.84, desc:"Rata mutuo aprile",               date:"2026-04-14",cat:"mutuo",        note:""},
+  {id:1198,type:"out",amount:49.79,  desc:"TIM telefonia",                   date:"2026-04-08",cat:"utenze",       note:""},
+  {id:1199,type:"out",amount:56.94,  desc:"ENI gas regolamento",             date:"2026-04-10",cat:"utenze",       note:""},
+  {id:1200,type:"out",amount:148.12, desc:"ENI luce regolamento",            date:"2026-04-10",cat:"utenze",       note:""},
+  {id:1201,type:"out",amount:16.00,  desc:"Alleanza Assicurazioni 04/26",    date:"2026-04-10",cat:"assicurazioni",note:""},
+  {id:1202,type:"out",amount:50.00,  desc:"Cristian Florin Moisa",           date:"2026-04-09",cat:"altro",        note:""},
+  {id:1203,type:"out",amount:79.02,  desc:"Conti SNC Valperga",              date:"2026-04-08",cat:"altro",        note:""},
+  {id:1204,type:"out",amount:2.16,   desc:"Tigros Rivarolo",                 date:"2026-04-12",cat:"alimentari",   note:""},
+  {id:1205,type:"out",amount:80.19,  desc:"Cisalfa Sport Biella",            date:"2026-04-11",cat:"sport",        note:""},
+  {id:1206,type:"out",amount:9.90,   desc:"Focus SRLS Rivarolo",             date:"2026-04-14",cat:"abbonamenti",  note:""},
+  {id:1207,type:"out",amount:42.00,  desc:"Fermento SRL Torino",             date:"2026-04-21",cat:"ristoranti",   note:""},
+  {id:1208,type:"out",amount:30.70,  desc:"Satispay ricarica",               date:"2026-04-20",cat:"altro",        note:""},
+  {id:1209,type:"out",amount:40.23,  desc:"VISA Inchiaro marzo",             date:"2026-04-10",cat:"altro",        note:"Estratto carta"},
+  {id:1210,type:"out",amount:4.50,   desc:"Canone conto UniCredit",          date:"2026-04-03",cat:"altro",        note:""},
+  {id:1211,type:"out",amount:0.48,   desc:"Memoshop mar 2026",               date:"2026-04-02",cat:"abbonamenti",  note:""},
+  // APRILE 2026 – Revolut
+  {id:1212,type:"out",amount:18.00,  desc:"Nuova Partenope Rivarolo",        date:"2026-04-01",cat:"ristoranti",   note:""},
+  {id:1213,type:"out",amount:160.45, desc:"Il Gigante spesa",                date:"2026-04-02",cat:"alimentari",   note:"⚠️ importo elevato"},
+  {id:1214,type:"out",amount:21.30,  desc:"Il Portico Di Nioi Rivarolo",     date:"2026-04-04",cat:"ristoranti",   note:""},
+  {id:1215,type:"out",amount:32.40,  desc:"Sushi To Mappano",                date:"2026-04-04",cat:"ristoranti",   note:""},
+  {id:1216,type:"out",amount:50.01,  desc:"ENI Rivarolo carburante",         date:"2026-04-04",cat:"carburante",   note:""},
+  {id:1217,type:"out",amount:13.99,  desc:"Action Rivarolo",                 date:"2026-04-05",cat:"altro",        note:""},
+  {id:1218,type:"in", amount:196.77, desc:"PayPal rimborso",                 date:"2026-04-05",cat:"rimborso",     note:"Prob. Vinted"},
+  {id:1219,type:"out",amount:19.60,  desc:"McDonald's Rivarolo",             date:"2026-04-06",cat:"ristoranti",   note:""},
+  {id:1220,type:"out",amount:13.90,  desc:"Il Gigante",                      date:"2026-04-06",cat:"alimentari",   note:""},
+  {id:1221,type:"out",amount:7.95,   desc:"Il Gigante",                      date:"2026-04-07",cat:"alimentari",   note:""},
+  {id:1222,type:"out",amount:8.04,   desc:"Tigros Rivarolo",                 date:"2026-04-08",cat:"alimentari",   note:""},
+  {id:1223,type:"in", amount:68.98,  desc:"Disinvestimento Robo Portfolio",  date:"2026-04-09",cat:"rimborso",     note:""},
+  {id:1224,type:"out",amount:150.00, desc:"Zara",                            date:"2026-04-09",cat:"abbigliamento",note:""},
+  {id:1225,type:"out",amount:26.35,  desc:"Planet Pet Rivarolo",             date:"2026-04-11",cat:"animali",      note:""},
+  {id:1226,type:"out",amount:38.50,  desc:"Old Wild West Biella",            date:"2026-04-13",cat:"ristoranti",   note:""},
+  {id:1227,type:"out",amount:20.99,  desc:"Spotify",                         date:"2026-04-13",cat:"abbonamenti",  note:""},
+  {id:1228,type:"in", amount:90.00,  desc:"Vinted vendita abbigliamento",    date:"2026-04-14",cat:"rimborso",     note:"MANGOPAY"},
+  {id:1229,type:"out",amount:64.30,  desc:"Hare Burolo",                     date:"2026-04-15",cat:"ristoranti",   note:""},
+  {id:1230,type:"out",amount:5.99,   desc:"Apple App Store",                 date:"2026-04-16",cat:"abbonamenti",  note:""},
+  {id:1231,type:"out",amount:4.95,   desc:"Tigros Rivarolo",                 date:"2026-04-16",cat:"alimentari",   note:""},
+  {id:1232,type:"out",amount:8.00,   desc:"La Rotonda Bianzè",               date:"2026-04-17",cat:"ristoranti",   note:""},
+  {id:1233,type:"out",amount:5.20,   desc:"Bar Stazione Livorno Ferraris",   date:"2026-04-18",cat:"ristoranti",   note:""},
+  {id:1234,type:"out",amount:8.50,   desc:"Bamboo Pub Oglianico",            date:"2026-04-18",cat:"ristoranti",   note:""},
+  {id:1235,type:"out",amount:11.00,  desc:"M.T.A. Ozegna",                   date:"2026-04-19",cat:"altro",        note:""},
+  {id:1236,type:"out",amount:23.50,  desc:"Da Gio Cuorgnè",                  date:"2026-04-20",cat:"ristoranti",   note:""},
+  {id:1237,type:"out",amount:34.61,  desc:"Tigros Rivarolo",                 date:"2026-04-21",cat:"alimentari",   note:""},
+  {id:1238,type:"out",amount:10.50,  desc:"Cafe' Bloom Torino",              date:"2026-04-23",cat:"ristoranti",   note:""},
+  {id:1239,type:"out",amount:2.99,   desc:"Apple App Store",                 date:"2026-04-26",cat:"abbonamenti",  note:""},
+  {id:1240,type:"out",amount:11.99,  desc:"Amazon acquisto",                 date:"2026-04-27",cat:"altro",        note:""},
+  {id:1241,type:"out",amount:10.00,  desc:"Apple iTunes",                    date:"2026-04-27",cat:"abbonamenti",  note:""},
+  {id:1242,type:"out",amount:25.04,  desc:"ENI Busano carburante",           date:"2026-04-27",cat:"carburante",   note:""},
+  {id:1243,type:"out",amount:12.49,  desc:"McDonald's Rivarolo",             date:"2026-04-28",cat:"ristoranti",   note:""},
+  {id:1244,type:"out",amount:26.74,  desc:"Temu",                            date:"2026-04-29",cat:"altro",        note:"Shopping online"},
+  {id:1245,type:"out",amount:7.10,   desc:"Girasole 3 Cuneo",                date:"2026-04-29",cat:"alimentari",   note:""},
+  {id:1246,type:"out",amount:10.10,  desc:"Autostrada dei Fiori",            date:"2026-04-29",cat:"trasporti",    note:""},
+  {id:1247,type:"out",amount:10.10,  desc:"Autostrada A33 Asti-Cuneo",       date:"2026-04-29",cat:"trasporti",    note:""},
+  {id:1248,type:"out",amount:9.80,   desc:"Maglione Srl Bra",                date:"2026-04-29",cat:"alimentari",   note:""},
+  {id:1249,type:"out",amount:62.80,  desc:"Hare Burolo",                     date:"2026-04-29",cat:"ristoranti",   note:""},
+  {id:1250,type:"out",amount:10.00,  desc:"Robo Portfolio apr 2026",         date:"2026-04-30",cat:"investimenti", note:"Micro-versamenti aggregati"},
+  // MAGGIO 2026
+  {id:1251,type:"out",amount:33.00,  desc:"Iper Kebap Cuorgnè",              date:"2026-05-01",cat:"ristoranti",   note:""},
+  {id:1252,type:"out",amount:5.00,   desc:"Canavesio Marina Pertusio",       date:"2026-05-02",cat:"altro",        note:""},
+  {id:1253,type:"out",amount:0.60,   desc:"Memoshop apr 2026",               date:"2026-05-05",cat:"abbonamenti",  note:""},
+  {id:1254,type:"out",amount:70.00,  desc:"Cristian Florin Moisa",           date:"2026-05-06",cat:"altro",        note:""},
+  {id:1255,type:"out",amount:44.79,  desc:"TIM telefonia",                   date:"2026-05-08",cat:"utenze",       note:""},
+  {id:1256,type:"out",amount:40.23,  desc:"VISA Inchiaro aprile",            date:"2026-05-08",cat:"altro",        note:"Estratto carta"},
+  {id:1257,type:"out",amount:35.16,  desc:"Satispay ricarica",               date:"2026-05-11",cat:"altro",        note:""},
+  {id:1258,type:"out",amount:46.00,  desc:"Alleanza Assicurazioni 05/26",    date:"2026-05-11",cat:"assicurazioni",note:""},
+  {id:1259,type:"in", amount:12.00,  desc:"Rimborso Greta Bertodo",          date:"2026-05-01",cat:"rimborso",    note:""},
+  {id:1260,type:"out",amount:10.37,  desc:"Patreon",                         date:"2026-05-02",cat:"abbonamenti",  note:""},
+  {id:1261,type:"out",amount:8.00,   desc:"Cinema Margherita Cuorgnè",       date:"2026-05-02",cat:"intrattenimento",note:""},
+  {id:1262,type:"out",amount:12.00,  desc:"La Cremeria di Marilena Favria",  date:"2026-05-02",cat:"alimentari",   note:""},
+  {id:1263,type:"out",amount:15.13,  desc:"Tigros Rivarolo",                 date:"2026-05-04",cat:"alimentari",   note:""},
+  {id:1264,type:"out",amount:4.33,   desc:"DeviantArt",                      date:"2026-05-04",cat:"abbonamenti",  note:"USD5"},
+  {id:1265,type:"out",amount:40.00,  desc:"Pagamento Greta Bertodo",         date:"2026-05-05",cat:"altro",        note:"Divisione spese"},
+  {id:1266,type:"out",amount:90.10,  desc:"Hot Pot Hub Torino",              date:"2026-05-06",cat:"ristoranti",   note:""},
+  {id:1267,type:"out",amount:7.60,   desc:"GTT Torino",                      date:"2026-05-06",cat:"trasporti",    note:""},
+  {id:1268,type:"out",amount:1.90,   desc:"GTT Torino",                      date:"2026-05-07",cat:"trasporti",    note:""},
+  {id:1269,type:"out",amount:4.10,   desc:"Bar Scarmagno",                   date:"2026-05-08",cat:"ristoranti",   note:""},
+  {id:1270,type:"out",amount:14.50,  desc:"Cafe' Bloom Torino",              date:"2026-05-08",cat:"ristoranti",   note:""},
+  {id:1271,type:"out",amount:1.32,   desc:"Riot Games",                      date:"2026-05-09",cat:"intrattenimento",note:""},
+  {id:1272,type:"out",amount:12.00,  desc:"Barbiere Torino",                 date:"2026-05-10",cat:"salute",       note:""},
+  {id:1273,type:"in", amount:11.00,  desc:"Rimborso Greta Bertodo",          date:"2026-05-10",cat:"rimborso",    note:""},
+  {id:1274,type:"out",amount:11.80,  desc:"Truffo Maria Luisa San Giorgio",  date:"2026-05-10",cat:"alimentari",   note:""},
+];
+
+// ── CATEGORIE ────────────────────────────────────────────────────────────
+const CATS_OUT=[
+  {id:"alimentari",      label:"Alimentari",      emoji:"🛒"},
+  {id:"ristoranti",      label:"Ristoranti",      emoji:"🍽️"},
+  {id:"trasporti",       label:"Trasporti",       emoji:"🚗"},
+  {id:"carburante",      label:"Carburante",      emoji:"⛽"},
+  {id:"utenze",          label:"Utenze",          emoji:"⚡"},
+  {id:"abbonamenti",     label:"Abbonamenti",     emoji:"📱"},
+  {id:"salute",          label:"Salute",          emoji:"💊"},
+  {id:"abbigliamento",   label:"Abbigliamento",   emoji:"👕"},
+  {id:"mutuo",           label:"Mutuo/Prest.",    emoji:"🏠"},
+  {id:"assicurazioni",   label:"Assicurazioni",   emoji:"🛡️"},
+  {id:"intrattenimento", label:"Intrattenimento", emoji:"🎭"},
+  {id:"sport",           label:"Sport",           emoji:"🏃"},
+  {id:"investimenti",    label:"Investimenti",    emoji:"📈"},
+  {id:"animali",         label:"Animali",         emoji:"🐾"},
+  {id:"altro",           label:"Altro",           emoji:"📦"},
+];
+const CATS_IN=[
+  {id:"stipendio", label:"Stipendio", emoji:"💼"},
+  {id:"rimborso",  label:"Rimborso",  emoji:"↩️"},
+  {id:"freelance", label:"Freelance", emoji:"✏️"},
+  {id:"bonus",     label:"Bonus",     emoji:"⭐"},
+  {id:"regalo",    label:"Regalo",    emoji:"🎁"},
+  {id:"altro_in",  label:"Altro",     emoji:"📦"},
+];
+const ALL_CATS=[...CATS_OUT,...CATS_IN];
+
+// ── STORAGE ──────────────────────────────────────────────────────────────
+const SK="ft-ios-v1", SK_DONE="ft-ios-seeded-v1";
+
+function loadData(){try{return JSON.parse(localStorage.getItem(SK)||"[]")}catch{return[]}}
+function saveData(d){try{localStorage.setItem(SK,JSON.stringify(d))}catch{}}
+function isSeeded(){return!!localStorage.getItem(SK_DONE)}
+function markSeeded(){localStorage.setItem(SK_DONE,"1")}
+
+// ── HELPERS ──────────────────────────────────────────────────────────────
+const fmt=n=>"€\u00a0"+Math.abs(n).toLocaleString("it-IT",{minimumFractionDigits:2,maximumFractionDigits:2});
+const fmtS=n=>(n>=0?"+":"−")+"\u00a0"+fmt(n);
+const mk=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;
+const ml=k=>{const[y,m]=k.split("-");return["Gen","Feb","Mar","Apr","Mag","Giu","Lug","Ago","Set","Ott","Nov","Dic"][+m-1]+" "+y};
+const catOf=id=>ALL_CATS.find(c=>c.id===id)||{label:id,emoji:"📦"};
+const sortTx=arr=>[...arr].sort((a,b)=>b.date.localeCompare(a.date)||b.id-a.id);
+function haptic(){try{navigator.vibrate&&navigator.vibrate(8)}catch{}}
+
+// ── STATE ────────────────────────────────────────────────────────────────
+let TXS=[];
+let fType="out", fCat="", selMonth=mk(new Date());
+
+// ── CATEGORY AUTO-DETECT ─────────────────────────────────────────────────
+const CAT_RULES=[
+  {cat:"alimentari",    rx:/tigros|gigante|conad|carrefour|pam|lidl|esselunga|aldi|supermercato|alimentari|coop|eurospin/i},
+  {cat:"ristoranti",    rx:/ristorante|pizzeria|burger|mcdonald|kfc|hare|sushi|kebap|bar |caffe|trattoria|osteria|bistrot|pub|terrazza|cremeria|hot pot/i},
+  {cat:"carburante",    rx:/eni|ip |agip|q8|shell|total|carburante|benzina|distributore|petroli/i},
+  {cat:"trasporti",     rx:/autostrad|telepass|atm |gtt |trenitalia|italo|taxi|uber|trenord|autobus/i},
+  {cat:"utenze",        rx:/tim |vodafone|wind|iliad|enel|a2a|eni gas|luce|gas |acqua |bolletta|tari/i},
+  {cat:"abbonamenti",   rx:/spotify|netflix|amazon prime|apple|microsoft|patreon|disney|nowt|youtube|deviantart/i},
+  {cat:"salute",        rx:/farmacia|medico|dottore|dentista|ottica|clinica|ospedale|sanitario/i},
+  {cat:"abbigliamento", rx:/zara|h&m|primark|zalando|decathlon|cisalfa|jd sport|foot locker|sport/i},
+  {cat:"mutuo",         rx:/mutuo|rata|prestito|unicredit|cofidis|findomestic|mediobanca|azimut/i},
+  {cat:"assicurazioni", rx:/alleanza|generali|assicuraz|polizza|axa|zurich/i},
+  {cat:"intrattenimento",rx:/cinema|teatro|concerto|ticket|booking|hotel|airbnb|viaggio|museo/i},
+  {cat:"sport",         rx:/palestra|piscina|calcio|fitness|sport|snowit|skipass/i},
+  {cat:"animali",       rx:/arcaplanet|petshop|veterinario|animali|pet /i},
+  {cat:"stipendio",     rx:/stipendio|italgas|accredito/i},
+  {cat:"rimborso",      rx:/rimborso|restituzione|vinted|paypal/i},
+];
+function autoDetectCat(desc){
+  const d=desc.toLowerCase();
+  for(const r of CAT_RULES){if(r.rx.test(d))return r.cat;}
+  return"altro";
+}
+
+// ── URL PARAMS (da Comandi iOS) ───────────────────────────────────────────
+function handleURLParams(){
+  const p=new URLSearchParams(window.location.search);
+  const amt=p.get("importo")||p.get("amount");
+  const desc=p.get("desc")||p.get("descrizione")||p.get("commerciante");
+  const type=p.get("tipo")||p.get("type")||"out";
+  const cat=p.get("cat")||p.get("categoria");
+  const note=p.get("nota")||p.get("note")||"";
+  const auto=p.get("auto"); // auto=1 → salva senza conferma
+
+  if(!amt||!desc)return false;
+
+  const amount=parseFloat(amt.replace(",","."));
+  if(!amount||amount<=0)return false;
+
+  const detectedCat=cat||autoDetectCat(desc);
+  const date=new Date().toISOString().split("T")[0];
+
+  // auto=1 → salva direttamente (usato da Comandi)
+  if(auto==="1"){
+    const tx={id:Date.now(),type,amount,desc,date,cat:detectedCat,note:"📲 Da notifica"+(note?" · "+note:"")};
+    TXS=sortTx([tx,...TXS]);
+    saveData(TXS);
+    showToast("📲 Salvata da notifica: "+fmt(amount));
+    // pulisci URL senza ricaricare
+    window.history.replaceState({},"",window.location.pathname);
+    return false; // resta su home
+  }
+
+  // altrimenti pre-compila il form
+  fType=type==="in"?"in":"out";
+  fCat=detectedCat;
+  document.getElementById("f-amount").value=amount;
+  document.getElementById("f-desc").value=desc;
+  document.getElementById("f-note").value=note??"Da notifica";
+  document.getElementById("f-date").value=date;
+  document.getElementById("btn-out").className="type-btn"+(fType==="out"?" sel-out":"");
+  document.getElementById("btn-in").className="type-btn"+(fType==="in"?" sel-in":"");
+  renderCatGrid();
+  window.history.replaceState({},"",window.location.pathname);
+  return true; // vai su tab add
+}
+
+// ── INIT ─────────────────────────────────────────────────────────────────
+function init(){
+  if("serviceWorker"in navigator){
+    navigator.serviceWorker.register("./sw.js").catch(()=>{});
+  }
+  if(!window.matchMedia("(display-mode: standalone)").matches&&!navigator.standalone){
+    document.getElementById("install-banner").classList.add("show");
+  }
+  document.getElementById("top-date").textContent=new Date().toLocaleDateString("it-IT",{day:"2-digit",month:"short",year:"numeric"});
+  document.getElementById("f-date").value=new Date().toISOString().split("T")[0];
+  if(!isSeeded()){
+    TXS=sortTx(SEED);
+    saveData(TXS);
+    markSeeded();
+  } else {
+    TXS=loadData();
+  }
+  renderAll();
+  // gestisci parametri URL da Comandi iOS
+  const goAdd=handleURLParams();
+  if(goAdd)setTimeout(()=>switchTab("add"),100);
+}
+
+// ── RENDER ALL ───────────────────────────────────────────────────────────
+function renderAll(){
+  updateKPIs();
+  renderHome();
+  renderCatGrid();
+}
+
+// ── KPIs ─────────────────────────────────────────────────────────────────
+function updateKPIs(){
+  const cm=mk(new Date());
+  const cur=TXS.filter(t=>t.date.startsWith(cm));
+  const inA=cur.filter(t=>t.type==="in").reduce((s,t)=>s+t.amount,0);
+  const outA=cur.filter(t=>t.type==="out").reduce((s,t)=>s+t.amount,0);
+  const n=inA-outA;
+  document.getElementById("kpi-in").textContent=fmt(inA);
+  document.getElementById("kpi-out").textContent=fmt(outA);
+  const kn=document.getElementById("kpi-net");
+  kn.textContent=fmtS(n);
+  kn.className="kpi-val "+(n>=0?"pos":"neg");
+  document.getElementById("kpi-count").textContent=cur.length;
+  document.getElementById("total-badge").textContent=TXS.length;
+}
+
+// ── HOME ─────────────────────────────────────────────────────────────────
+function renderHome(){
+  renderBarChart();
+  const el=document.getElementById("recent-list");
+  const rec=TXS.slice(0,7);
+  el.innerHTML=rec.length
+    ?rec.map(t=>txHTML(t,false)).join("")
+    :`<div class="empty"><div class="empty-icon">📭</div><div class="empty-text">Nessuna transazione.<br>Premi ➕ per aggiungerne una.</div></div>`;
+}
+
+// ── BAR CHART (SVG nativo) ────────────────────────────────────────────────
+function renderBarChart(){
+  const el=document.getElementById("chart-area");
+  const W=el.clientWidth||320, H=150;
+  const months=[];
+  for(let i=5;i>=0;i--){const d=new Date();d.setDate(1);d.setMonth(d.getMonth()-i);months.push(mk(d));}
+  const pairs=months.map(m=>({
+    label:ml(m).split(" ")[0],
+    inV:Math.round(TXS.filter(t=>t.type==="in"&&t.date.startsWith(m)).reduce((s,t)=>s+t.amount,0)),
+    outV:Math.round(TXS.filter(t=>t.type==="out"&&t.date.startsWith(m)).reduce((s,t)=>s+t.amount,0)),
+  }));
+  const maxV=Math.max(...pairs.flatMap(p=>[p.inV,p.outV]),1);
+  const pad={l:30,r:8,t:8,b:22};
+  const cW=W-pad.l-pad.r, cH=H-pad.t-pad.b;
+  const gw=cW/6, bw=gw*0.32;
+  let svg=`<svg class="bars" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">`;
+  // Y gridlines
+  for(let i=0;i<=4;i++){
+    const y=pad.t+cH*(1-i/4);
+    const v=Math.round(maxV*i/4);
+    svg+=`<line x1="${pad.l}" y1="${y}" x2="${W-pad.r}" y2="${y}" stroke="var(--border)" stroke-width=".5"/>`;
+    svg+=`<text x="${pad.l-4}" y="${y+3}" text-anchor="end" class="chart-y">€${v>=1000?(v/1000).toFixed(0)+"k":v}</text>`;
+  }
+  pairs.forEach((p,i)=>{
+    const cx=pad.l+gw*i+gw/2;
+    const inH=cH*(p.inV/maxV), outH=cH*(p.outV/maxV);
+    svg+=`<rect x="${cx-bw-1}" y="${pad.t+cH-inH}" width="${bw}" height="${inH}" rx="2" class="bar-in"/>`;
+    svg+=`<rect x="${cx+1}" y="${pad.t+cH-outH}" width="${bw}" height="${outH}" rx="2" class="bar-out"/>`;
+    svg+=`<text x="${cx}" y="${H-4}" text-anchor="middle" class="chart-x">${p.label}</text>`;
+  });
+  svg+="</svg>";
+  el.innerHTML=svg;
+}
+
+// ── DAILY LINE CHART (SVG) ────────────────────────────────────────────────
+function renderDailyChart(monthKey){
+  const el=document.getElementById("daily-chart");
+  const W=el.clientWidth||320, H=140;
+  const[yy,mm]=monthKey.split("-").map(Number);
+  const dim=new Date(yy,mm,0).getDate();
+  const pad={l:30,r:8,t:8,b:22};
+  const cW=W-pad.l-pad.r, cH=H-pad.t-pad.b;
+  const mTxs=TXS.filter(t=>t.date.startsWith(monthKey));
+  const days=Array.from({length:dim},(_,i)=>{
+    const ds=String(i+1).padStart(2,"0");
+    const full=`${monthKey}-${ds}`;
+    return{
+      out:mTxs.filter(t=>t.type==="out"&&t.date===full).reduce((s,t)=>s+t.amount,0),
+      inn:mTxs.filter(t=>t.type==="in"&&t.date===full).reduce((s,t)=>s+t.amount,0),
+    };
+  });
+  const maxV=Math.max(...days.flatMap(d=>[d.out,d.inn]),1);
+  const px=i=>pad.l+cW*(i/(dim-1||1));
+  const py=v=>pad.t+cH*(1-v/maxV);
+  const path=arr=>{
+    const pts=arr.map((v,i)=>({x:px(i),y:py(v)})).filter(p=>!isNaN(p.y));
+    if(!pts.length)return"";
+    return"M"+pts.map(p=>`${p.x.toFixed(1)},${p.y.toFixed(1)}`).join("L");
+  };
+  let svg=`<svg class="bars" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">`;
+  for(let i=0;i<=3;i++){
+    const y=pad.t+cH*(1-i/3);
+    svg+=`<line x1="${pad.l}" y1="${y}" x2="${W-pad.r}" y2="${y}" stroke="var(--border)" stroke-width=".5"/>`;
+    const v=Math.round(maxV*i/3);
+    svg+=`<text x="${pad.l-4}" y="${y+3}" text-anchor="end" class="chart-y">€${v>=1000?(v/1000).toFixed(0)+"k":v}</text>`;
+  }
+  const tickEvery=Math.ceil(dim/6);
+  days.forEach((_,i)=>{if(i%tickEvery===0)svg+=`<text x="${px(i).toFixed(1)}" y="${H-4}" text-anchor="middle" class="chart-x">${i+1}</text>`;});
+  const dOut=days.map(d=>d.out), dIn=days.map(d=>d.inn);
+  const pOut=path(dOut), pIn=path(dIn);
+  if(pOut)svg+=`<path d="${pOut}" fill="none" stroke="rgba(216,90,48,.85)" stroke-width="2" stroke-linejoin="round"/>`;
+  if(pIn) svg+=`<path d="${pIn}"  fill="none" stroke="rgba(29,158,117,.85)" stroke-width="2" stroke-linejoin="round"/>`;
+  svg+="</svg>";
+  el.innerHTML=svg;
+}
+
+// ── TX HTML ───────────────────────────────────────────────────────────────
+function txHTML(t,del){
+  const cat=catOf(t.cat);
+  const d=new Date(t.date+"T12:00:00").toLocaleDateString("it-IT",{day:"2-digit",month:"short"});
+  const delBtn=del?`<button class="tx-del" onclick="deleteTx(${t.id})">🗑️</button>`:"";
+  return`<div class="tx-item">
+    <div class="tx-icon ${t.type}">${cat.emoji}</div>
+    <div class="tx-info">
+      <div class="tx-desc">${t.desc}</div>
+      <div class="tx-meta">${d} · ${cat.label}${t.note?" · "+t.note:""}</div>
+    </div>
+    <div class="tx-amt ${t.type}">${t.type==="out"?"-":"+"}${fmt(t.amount)}</div>
+    ${delBtn}
+  </div>`;
+}
+
+// ── FORM ─────────────────────────────────────────────────────────────────
+function selType(t){
+  fType=t; fCat="";
+  document.getElementById("btn-out").className="type-btn"+(t==="out"?" sel-out":"");
+  document.getElementById("btn-in").className="type-btn"+(t==="in"?" sel-in":"");
+  renderCatGrid();
+}
+
+function renderCatGrid(){
+  const cats=fType==="out"?CATS_OUT:CATS_IN;
+  document.getElementById("cat-grid").innerHTML=cats.map(c=>
+    `<button class="cat-btn${fCat===c.id?" sel":""}" onclick="pickCat('${c.id}')"><span>${c.emoji}</span>${c.label}</button>`
+  ).join("");
+}
+
+function pickCat(id){fCat=id;haptic();renderCatGrid();}
+
+function saveTx(){
+  const amt=parseFloat(document.getElementById("f-amount").value);
+  const desc=document.getElementById("f-desc").value.trim();
+  const date=document.getElementById("f-date").value;
+  const note=document.getElementById("f-note").value.trim();
+  if(!amt||amt<=0){showToast("Inserisci un importo");return;}
+  if(!desc){showToast("Inserisci una descrizione");return;}
+  if(!date){showToast("Seleziona una data");return;}
+  if(!fCat){showToast("Seleziona una categoria");return;}
+  const tx={id:Date.now(),type:fType,amount:amt,desc,date,cat:fCat,note};
+  TXS=sortTx([tx,...TXS]);
+  saveData(TXS);
+  document.getElementById("f-amount").value="";
+  document.getElementById("f-desc").value="";
+  document.getElementById("f-note").value="";
+  fCat=""; renderCatGrid();
+  haptic();
+  showToast("✅ Transazione salvata!");
+  switchTab("home");
+}
+
+// ── DELETE ────────────────────────────────────────────────────────────────
+function deleteTx(id){
+  TXS=TXS.filter(t=>t.id!==id);
+  saveData(TXS);
+  haptic();
+  showToast("🗑️ Eliminata");
+  renderAll();
+  renderHistory();
+}
+
+function confirmClear(){
+  if(!confirm("Cancellare tutte le transazioni?"))return;
+  TXS=[];saveData(TXS);
+  showToast("Dati eliminati");
+  renderAll();renderHistory();
+}
+
+// ── REPORT ────────────────────────────────────────────────────────────────
+function renderReport(){
+  const months=[...new Set(TXS.map(t=>t.date.slice(0,7)))].sort().reverse();
+  if(!months.includes(selMonth))selMonth=months[0]||mk(new Date());
+  // chips
+  const chips=document.getElementById("month-chips");
+  chips.innerHTML=(months.length?months:[selMonth]).slice(0,10).map(m=>
+    `<button class="m-chip${m===selMonth?" sel":""}" onclick="selectMonth('${m}')">${ml(m)}</button>`
+  ).join("");
+  // title
+  document.getElementById("rep-title").textContent="Spese per categoria — "+ml(selMonth);
+  // category bars
+  const mTxs=TXS.filter(t=>t.date.startsWith(selMonth)&&t.type==="out");
+  const bc={};
+  mTxs.forEach(t=>{bc[t.cat]=(bc[t.cat]||0)+t.amount;});
+  const srt=Object.entries(bc).sort((a,b)=>b[1]-a[1]);
+  const tot=srt.reduce((s,[,v])=>s+v,0);
+  const rows=document.getElementById("cat-rows");
+  if(!srt.length){rows.innerHTML='<div class="empty" style="padding:20px 0"><div class="empty-icon">📊</div><div class="empty-text">Nessuna uscita in questo mese.</div></div>';document.getElementById("rep-tip").style.display="none";}
+  else{
+    rows.innerHTML=srt.map(([id,val])=>{
+      const cat=catOf(id);
+      const pct=tot>0?(val/tot*100):0;
+      return`<div class="cat-row">
+        <div class="cat-emoji">${cat.emoji}</div>
+        <div class="cat-name">${cat.label}</div>
+        <div class="cat-track"><div class="cat-fill" style="width:${pct.toFixed(1)}%"></div></div>
+        <div class="cat-pct">${Math.round(pct)}%</div>
+        <div class="cat-sum">${fmt(val)}</div>
+      </div>`;
+    }).join("");
+    const top=catOf(srt[0][0]);
+    const tip=document.getElementById("rep-tip");
+    tip.style.display="block";
+    tip.innerHTML=`<strong>Top categoria:</strong> ${top.emoji} ${top.label} — ${fmt(srt[0][1])} (${Math.round(srt[0][1]/tot*100)}% delle uscite)${srt[0][1]/tot>0.3?" · Considera di ridurre questa voce.":""}`;
+  }
+  renderDailyChart(selMonth);
+}
+
+function selectMonth(m){haptic();selMonth=m;renderReport();}
+
+// ── HISTORY ──────────────────────────────────────────────────────────────
+function renderHistory(){
+  const q=(document.getElementById("search-inp").value||"").toLowerCase();
+  const filtered=TXS.filter(t=>!q||[t.desc,t.cat,t.note||""].some(v=>v.toLowerCase().includes(q)));
+  const el=document.getElementById("history-list");
+  el.innerHTML=filtered.length
+    ?filtered.map(t=>txHTML(t,true)).join("")
+    :`<div class="empty"><div class="empty-icon">${q?"🔍":"📭"}</div><div class="empty-text">${q?`Nessun risultato per "${q}"`.replace(/"/g,""):"Nessuna transazione."}</div></div>`;
+}
+
+// ── TOAST ─────────────────────────────────────────────────────────────────
+let _tt=null;
+function showToast(msg){
+  const el=document.getElementById("toast");
+  el.textContent=msg;el.classList.add("show");
+  if(_tt)clearTimeout(_tt);
+  _tt=setTimeout(()=>el.classList.remove("show"),2400);
+}
+
+// ── TAB SWITCH (aggiornato con guide) ─────────────────────────────────────
+function switchTab(name){
+  haptic();
+  document.querySelectorAll(".screen").forEach(s=>s.classList.remove("active"));
+  document.querySelectorAll(".nav-btn").forEach(b=>b.classList.remove("active"));
+  document.getElementById("s-"+name).classList.add("active");
+  document.getElementById("tab-"+name).classList.add("active");
+  updateKPIs();
+  if(name==="home")renderHome();
+  if(name==="report")renderReport();
+  if(name==="history")renderHistory();
+  if(name==="guide")renderGuide();
+  document.getElementById("s-"+name).scrollTop=0;
+}
+
+// ── GUIDE ─────────────────────────────────────────────────────────────────
+let ubAuto=false;
+let _builtURL="";
+
+function renderGuide(){
+  const base=window.location.origin+window.location.pathname;
+  document.getElementById("app-url").textContent=base;
+  buildURL();
+
+  const STEPS=[
+    {n:"1",title:"Apri l'app Comandi",body:"Cerca \"Comandi\" nella libreria app iOS. È preinstallata su iOS 13+."},
+    {n:"2",title:"Nuova Automazione",body:"Tocca la scheda <strong>Automazioni</strong> → + → <strong>Crea automazione personale</strong>."},
+    {n:"3",title:"Scegli il trigger",body:"Scorri e seleziona <strong>App</strong> → scegli Satispay (o Revolut) → <strong>È aperta</strong> oppure usa <strong>Notifica ricevuta</strong> (iOS 17+)."},
+    {n:"4",title:"Aggiungi azione: Ottieni testo notifica",body:"Cerca <strong>\"Ottieni dettagli della notifica\"</strong> e seleziona <strong>Corpo</strong> per avere il testo della notifica."},
+    {n:"5",title:"Estrai importo con RegEx",body:"Aggiungi <strong>\"Abbina testo\"</strong>. Pattern: <code>\\d+[,.]?\\d*</code> — questo trova il numero dell'importo nel testo."},
+    {n:"6",title:"Apri URL",body:"Aggiungi <strong>\"Apri URL\"</strong> e incolla l'URL che hai copiato dalla sezione qui sopra. Sostituisci i valori fissi con le variabili del passo precedente."},
+    {n:"7",title:"Disattiva \"Chiedi prima di eseguire\"",body:"In fondo alla schermata, disattiva questa opzione altrimenti iOS chiederà conferma ogni volta."},
+  ];
+
+  document.getElementById("steps-list").innerHTML=STEPS.map(s=>`
+    <div style="display:flex;gap:10px;margin-bottom:12px;align-items:flex-start">
+      <div style="width:24px;height:24px;border-radius:50%;background:var(--teal);color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">${s.n}</div>
+      <div>
+        <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:2px">${s.title}</div>
+        <div style="font-size:12px;color:var(--muted);line-height:1.5">${s.body}</div>
+      </div>
+    </div>
+  `).join("");
+}
+
+function buildURL(){
+  const base=window.location.origin+window.location.pathname;
+  const auto=ubAuto?"&auto=1":"";
+  // Mostra URL con placeholder per Comandi
+  _builtURL=`${base}?importo=[IMPORTO]&desc=[COMMERCIANTE]&tipo=out${auto}`;
+  const el=document.getElementById("built-url");
+  if(el) el.textContent=_builtURL;
+}
+
+function copyURL(){
+  const base=window.location.origin+window.location.pathname;
+  navigator.clipboard.writeText(base).then(()=>showToast("✅ URL copiato!")).catch(()=>{
+    const ta=document.createElement("textarea");
+    ta.value=base;document.body.appendChild(ta);ta.select();
+    document.execCommand("copy");document.body.removeChild(ta);
+    showToast("✅ URL copiato!");
+  });
+  haptic();
+}
+
+function copyBuiltURL(){
+  if(!_builtURL)buildURL();
+  navigator.clipboard.writeText(_builtURL).then(()=>showToast("✅ URL copiato!")).catch(()=>{
+    const ta=document.createElement("textarea");
+    ta.value=_builtURL;document.body.appendChild(ta);ta.select();
+    document.execCommand("copy");document.body.removeChild(ta);
+    showToast("✅ URL copiato!");
+  });
+  haptic();
+}
+
+// ── RESIZE ────────────────────────────────────────────────────────────────
+window.addEventListener("resize",()=>{
+  if(document.getElementById("s-home").classList.contains("active"))renderBarChart();
+  if(document.getElementById("s-report").classList.contains("active"))renderReport();
+});
+
+// ── PREVENT BOUNCE SCROLL ─────────────────────────────────────────────────
+document.body.addEventListener("touchmove",e=>{
+  if(!e.target.closest(".screen"))e.preventDefault();
+},{passive:false});
+
+// ── START ─────────────────────────────────────────────────────────────────
+init();
+</script>
+</body>
+</html>
